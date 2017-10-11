@@ -14,7 +14,7 @@ from wavelength_ranges import *
 #-----------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------#
 
-class tds_data():
+class TDSData():
     """
     Measure the TDS of COS data. 
 
@@ -49,6 +49,14 @@ class tds_data():
     """
 
     def __init__(self, infiles, outdir, binsize=1000., pickle=True):
+        """
+        Args: 
+            infiles: List or wild-card string of input datasets.
+            outdir (str): Output directory for pickle file.
+            binsize (int or float): Size of each wavelength bin.
+            pickle (Bool): Switch to pickle class or not. 
+        """
+
         mjds = [Time(pf.getval(x, "expstart", 1), format="mjd") for x in infiles]
         order = np.argsort(mjds)
         self.dates_mjd = np.array(mjds)[order]
@@ -68,12 +76,16 @@ class tds_data():
 
 #-----------------------------------------------------------------------------#
 
-    def pickle_tds():
+    def pickle_tds(self):
+        """
+        Pickle the TDSData class object.
+        """
+
         import pickle
         import datetime
 
         now = datetime.datetime.now()
-        pname = "costds_{0}.p".format(now.strfile("%Y%m%d_%M%S"))
+        pname = "costds_{0}.p".format(now.strftime("%Y%m%d_%M%S"))
         pickle.dump(self, open(pname, "wb"))
         print("Wrote pickle file {0}".format(pname))
 
@@ -100,30 +112,48 @@ class tds_data():
 #-----------------------------------------------------------------------------#
 
     def bin_data(self, binsize):
+        """
+        Bin the ratio and net data and determine the mean and standard deviation
+        of each bin.
+
+        Args:
+            binsize (int or float): Size of each wavelength bin. 
+        """
+
         means = []
         stds = []
         bins = []
         nbins = []
         means_net = []
         stds_net = []
+
         for i in range(self.nfiles):
+            # These need to be lists because there can be multiple entries
+            # depending on bin size.
             mean_segs = []
             stds_segs = []
             bins_segs = []
             nbins_segs = []
             meann_segs = []
             stdn_segs = []
+
+
             for j in range(len(self.segments[i])):
+                # Wavelength range defined by pre-defined values.
                 wl_range = WL_DICT[self.cenwaves[i]][self.segments[i][j]]
                 min_wl = wl_range[0]
                 max_wl = wl_range[1]
-#                min_wl = min(self.wl_trunc[i][j])
-#                max_wl = max(self.wl_trunc[i][j])
+                
+                # If the bin size is bigger than the wavelength range,
+                # make the bin the entire WL range. 
                 if binsize >= (max_wl - min_wl):
                     bins_j = np.array([min_wl, max_wl])
                 else:
                     bins_j = np.arange(min_wl, max_wl, binsize)
                 nbins_j = len(bins_j) - 1
+
+                # Determine the mean and STD for each bin for both the 
+                # NET ratio and NET.
                 mean = stats.binned_statistic(self.ref[self.cenwaves[i]]["wl"][j],
                                               self.ratios[i][j], 
                                               "mean", bins=bins_j)[0]
@@ -158,32 +188,6 @@ class tds_data():
         self.means_net = means_net
         self.stds_net = stds_net
 
-#        self.binned = {}
-#        done = []
-#        for i in range(self.nfiles):
-#            if i not in done:
-#                wl_min = WL_DICT[self.gratings[i]        
-#                done.append(i)
-#                inds = np.where(self.gratings == self.gratings[i])
-#                epoch = self.dates_mjd[i]
-#                same_epoch = True
-#                j = 0
-#                while same_epoch:
-#                    if j != i and self.dates_mdj[j] > (epoch-30) and self.dates_mjd[j] < (epoch+30):
-#                        done.append(j)
-#
-#
-#
-#        for opt_elem in set(self.gratings):
-#            inds = np.where(self.gratings == opt_elem)
-#            same_epoch = True
-#            epoch = self.dates
-#            while same_epoch:
-#            
-#            avg = np.average(self.ratios[inds])
-            
-        
-        
 #-----------------------------------------------------------------------------#
 
     def get_refdata(self):
