@@ -89,7 +89,7 @@ class TDSData():
         import datetime
 
         now = datetime.datetime.now()
-        pname = "costds_{0}.p".format(now.strftime("%Y%m%d_%M%S"))
+        pname = os.path.join(self.outdir, "costds_{0}.p".format(now.strftime("%Y%m%d_%M%S")))
         pickle.dump(self, open(pname, "wb"))
         print("Wrote pickle file {0}".format(pname))
 
