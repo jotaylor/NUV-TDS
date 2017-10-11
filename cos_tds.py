@@ -8,6 +8,7 @@ import numpy as np
 import matplotlib.pyplot as pl
 import datetime
 from scipy import stats
+import warnings
 
 from wavelength_ranges import *
 
@@ -20,8 +21,11 @@ class TDSData():
 
     Attributes:
         dates_mjd (array-like): Observation date (MJD) of each dataset.
+            Astropy Time object.
         dates (array-like): Observation date (datetime.datetime) of each 
-            dataset.
+            dataset. Datetime object.
+        dates (array-like): Observation date (decimal year) of each dataset.
+            Astropy Time object.
         infiles (array-like): Full path and filename of all input x1d files.
 #        outdir (str): Output directory for.
         nfiles (int): Number of input x1d files.
@@ -61,13 +65,13 @@ class TDSData():
         order = np.argsort(mjds)
         self.dates_mjd = np.array(mjds)[order]
         self.dates = np.array([x.datetime for x in self.dates_mjd])
+        self.dates_dec = np.array([x.decimalyear for x in self.dates_mjd])
         self.infiles = self.parse_infiles(infiles)[order]
         self.outdir = outdir
         self.nfiles = len(self.infiles)
         self.rootnames = np.array([pf.getval(x, "rootname", 0) for x in self.infiles])
         self.get_hduinfo()
         self.get_refdata()
-#        self.apply_wl_windows()
         self.ratios, self.nets_intp = self.calc_ratios()
         self.bin_data(binsize)
         if pickle:
@@ -209,6 +213,7 @@ class TDSData():
 #-----------------------------------------------------------------------------#
 
 # put in a check to ensure all data same detector
+# need to update for FUV.
     def get_hduinfo(self):
         """
         Get necessary information from the input files' HDU headers and 
@@ -228,10 +233,13 @@ class TDSData():
         gratings = []
         segments = []
         bad_inds = []
+        
         for i in range(self.nfiles):
             with pf.open(self.infiles[i]) as hdulist:
                 data = hdulist[1].data
                 hdr0 = hdulist[0].header
+                
+                # These observations failed and should be excluded.
                 if hdr0["proposid"] == 13125 and (hdr0["obset_id"] == "M2" or hdr0["obset_id"] == "L2"):
                     bad_inds.append(i)
                     continue
@@ -239,6 +247,7 @@ class TDSData():
                     bad_inds.append(i)
                     continue
 
+                # Some early observations used different targets, exclude these.
                 if hdr0["opt_elem"] == "G230L":
                     if hdr0["targname"] != "WD1057+719":
                         bad_inds.append(i)
@@ -254,6 +263,7 @@ class TDSData():
                 gratings.append(hdr0["opt_elem"])
                 cenwaves.append(hdr0["cenwave"]) 
 
+        # Remove rows for all the bad files.
         remove_files(bad_inds)
 
         self.nets = nets
@@ -278,22 +288,25 @@ class TDSData():
 
         ratios = []
         net_interp = []
-        # Interpolate each dataset's NET values to the wavelength scale of the 
+        
+        # Interpolate each dataset's NET values to the wavelength scale of its 
         # reference dataset (first in time).
         for i in range(self.nfiles):
-        #for i in range(1, self.nfiles, 1):
             net_intp_allseg = []
             ratios_allseg = []
+
             for j in range(len(self.segments[i])):
-                net_intp_j = np.interp(self.ref[self.cenwaves[i]]["wl"][j], self.wls[i][j], self.nets[i][j])
+                net_intp_j = np.interp(self.ref[self.cenwaves[i]]["wl"][j], 
+                                       self.wls[i][j], self.nets[i][j])
                 net_intp_allseg.append(net_intp_j)
                 net_intp_j.astype(np.float64)
                 ref_net = self.ref[self.cenwaves[i]]["net"][j]
                 ref_net.astype(np.float64)
+                warnings.filterwarnings("ignore", category=RuntimeWarning)
                 ratios_j = net_intp_j / ref_net
+                warnings.resetwarnings()
                 ratios_j = np.nan_to_num(ratios_j)
                 ratios_allseg.append(ratios_j)
-
 
             net_intp_allseg_arr = np.array(net_intp_allseg)
             ratios_allseg_arr = np.array(ratios_allseg)
@@ -329,4 +342,8 @@ class TDSData():
 
 #-----------------------------------------------------------------------------#
 
-
+    def do_linlsqfit(x, y):
+        from astropy.modeling import models, fitting
+        t_init = models.Linear1D()
+        fit_t = fitting.LinearLSQFitter()
+        lsq_lin_fit = fit_t(t_init, x, y)                                                             
