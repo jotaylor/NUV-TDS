@@ -374,58 +374,28 @@ class TDSData():
 #-----------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------#
 
-#class TDSTrends(object):
-#    """
-#    Determine the linear fit to the TDS trends.
-#    
-#    Attributes:
-#        
-#    """
-#    def __init__(self, gratings, cenwaves, dates, ratios, make_plots=True):
-#        """
-#        gratings (list or array): Gratings for which TDS was analyzed.
-#        Cenwaves (list or array): Cenwaves for each grating.
-#        Dates (list or array): Dates for each TDS measurement.
-#        Ratios (list or array): Net ratio for each TDS measurement.
-#            If there are multiple segments, this should be N_segments X length.
-#        make_pltos (Bool): True if plots should be produced.
-#        """ 
-#        
-#        this = "wut do"
-#        ## Check type of dates first and convert to Time.decimalyear
-#        #date = dates.flatten()[0]
-#        #if type(date) is float:
-#        #    x = [Time(i, format="decimalyear") for i in dates]
-#        #elif type(date) is datetime.datetime:
-#        #    x = [Time(i, format="datetime").decimalyear for i in dates]
-#        #elif type(date) is astropy.time.core.Time:
-#        #    x = [i.decimalyear for i in dates]
-#        #else:
-#        #    d_type = type(date)
-#        #    print("Format of date array not recognized: {0}".format(d_type))
-#        #    sys.exit()
-#
-#        #self.dates = x
-#        #self.ratios = ratios
-#        #self.gratings = gratings
-#        #self.cenwaves = cenwaves
-#
-#        #self.trends = self.fit_trends()
-#        #if make_plots:
-#        #    self.plot()
-
-#-----------------------------------------------------------------------------#
-#-----------------------------------------------------------------------------#
-
 class TDSTrends(object):
+    """
+    Create a TDSTrends class instance which describes the linear fits to the
+    TDS data.  Based on  information from a TDSData instance. 
+    This does not inherit from TDSData because we only need a few attributes 
+    and don't need to carry around the rest.
+
+    Attributes:
+        detector (str): NUV or FUV.
+        trends (dict): Dictionary describing the fits to the TDS data. 
+            Structure is as follows: Grating -> Cenwave -> Segment ->
+            Wavelength bin -> Fit (m,b), x data (dates), y data (relative net)
+    """ 
     def __init__(self, TDS):
         """
-        Create a TDSTrends class instance  by using information from a
-        TDSData instance.
-        """ 
-        
+        Args:
+            TDS (TDSData class instance): Instance of TDSData.
+        """     
+
         self.detector = TDS.detector
         trends = {}
+        # Create structure of the trends dictionary.
         for cenwave in set(TDS.cenwaves):
             grating = TDS.gratings[np.where(TDS.cenwaves == cenwave)[0][0]]
             if grating not in trends.keys():
@@ -438,6 +408,7 @@ class TDSTrends(object):
             nbins = TDS.nbins[inds][0]
             bins = TDS.bins[inds][0]
 
+            # Determine the linear fit to the data using linear LSQ.
             for i in range(TDS.nsegs):
                 seg = TDS.segments[inds][0][i]
                 trends[grating][cenwave][seg] = {}
@@ -453,50 +424,21 @@ class TDSTrends(object):
         self.trends = trends
 
 #-----------------------------------------------------------------------------#
-
-#    def fit_trends(self):
-#        trends = {}
-#        for cenwave in set(self.cenwaves):
-#            grating = self.gratings[np.where(self.cenwaves == cenwave)[0][0]]
-#            if grating not in trends.keys():
-#                trends[grating] = {}
-#            trends[grating][cenwave] = {}
-#            trends[grating][cenwave]["y"] = []
-#            trends[grating][cenwave]["fit"] = np.zeros((1, self.nsegs,  
-#
-#            inds = np.where(self.cenwaves == cenwave)[0]
-#            cenwave_x = self.dates_dec[inds]
-#            cenwave_y = self.means[inds]
-#            nbins = self.nbins[inds][0]
-#            trends[grating][cenwave]["x"] = cenwave_x
-#
-#            
-#            for i in range(self.nsegs):
-#                slopes = []
-#                ints = []
-#                for j in range(1, nbins[i]+1):
-#                    cenwave_bin_y = cenwave_y[:, i, j]
-#                    m,b = linlsqfit(cenwave_x, cenwave_bin_y[:,i])
-#                    slopes.append(m)
-#                    ints.append(b)
-#                    
-#                    trends[grating][cenwave]["fit"].append((m,b))  
-#                    trends[grating][cenwave]["y"].append(cenwave_y[i]) 
-#                
-#        return trends
-
-#-----------------------------------------------------------------------------#
         
-    def plot_trends(self, g285m_log=True):
+    def plot_trends(self, g285m_log=True, one_plot=False):
         """
+        Plot
+
         Args:
-            g285m_log (Bool): Switch to plot G285M trends with a log Y-axis. 
+            g285m_log (Bool): Switch to plot G285M trends with a log Y-axis.
+            one_plot (Bool): Switch to plot all segments in one plot. 
         """
         import matplotlib as mpl
         import matplotlib.pyplot as plt
         plt.style.use("niceplot")
         from matplotlib import gridspec
-        
+        plt.ioff()
+
         if self.detector == "FUV":
             segs = ["FUVA", "FUVB"]
         elif self.detector == "NUV":
@@ -509,24 +451,38 @@ class TDSTrends(object):
         for grating in self.trends:
             # Loop over each cenwave in the grating.
             for cenwave in self.trends[grating]:
-                fig = plt.figure(figsize=(8,11))
                 nsegs = len(self.trends[grating][cenwave])
-                gs = gridspec.GridSpec(nsegs, 1)
+                colors = ["forestgreen", "yellowgreen", "gold"]
+                if one_plot:
+                    fig = plt.figure(figsize=(8,4))
+                    fig_res = plt.figure(figsize=(8,4))
+                    gs = gridspec.GridSpec(1,1)
+                    gs_res = gridspec.GridSpec(1,1)
+                else:
+                    fig = plt.figure(figsize=(8,11))
+                    fig_res = plt.figure(figsize=(8,11))
+                    gs = gridspec.GridSpec(nsegs, 1)
+                    gs_res = gridspec.GridSpec(nsegs, 1)
                 # Loop over each segment in the cenwave.
                 for i,seg in enumerate(self.trends[grating][cenwave]):
                     # Loop over each wavelength bin.
                     for wlbin in self.trends[grating][cenwave][seg]:
                         current_trends = self.trends[grating][cenwave][seg][wlbin]
-                        
-                        ax = plt.subplot(gs[i])
-                        
+                   
+                        if one_plot:
+                            ax = fig.add_subplot(gs[0])     
+                            ax_res = fig_res.add_subplot(gs_res[0])
+                        else:
+                            ax = fig.add_subplot(gs[i])
+                            ax_res = fig_res.add_subplot(gs_res[i])
+
                         if g285m_log and grating == "G285M":
                             ax.set_yscale("log")
                             ax.set_yticks([1, .8, .6, .5, .4, .3, .2, .1, .01, .001])
 #                            ax.set_ylim(.003, 1.1)
-                            ax.set_ylabel("Log(Relative Net)")
+                            ax.set_ylabel("Log(Relative Net Counts)")
                         else:
-                            ax.set_ylabel("Relative Net")
+                            ax.set_ylabel("Relative Net Counts")
                         ax.yaxis.set_major_formatter(mpl.ticker.FormatStrFormatter("%.2f"))
     
                         m,b = current_trends["fit"]
@@ -537,23 +493,44 @@ class TDSTrends(object):
                         fit_y = m * fit_x + b 
     
                         # Plot linear fit and data points.
-                        ax.plot(fit_x, fit_y, color="forestgreen", 
-                                label="{0:.2f} %/yr".format(m*100.))
-                        ax.plot(x, y, marker="*", linestyle="None", color="black",
-                                markersize=8)
-    
+                        if one_plot:
+                            ax.plot(fit_x, fit_y, color=colors[i], 
+                                    label="{0} {1:.2f} %/yr".format(seg, m*100.))
+                        else:
+                            ax.plot(fit_x, fit_y, color=colors[i], 
+                                    label="{0:.2f} %/yr".format(m*100.))
+                        ax.plot(x, y, marker="*", linestyle="None", color=colors[i])
+
+                                
+                        res = y - (m*x +b) 
+                        ax_res.plot(x, res, marker="*", linestyle="None", color=colors[i], label=seg)
+                        ax_res.axhline(y=0, linestyle=":", color="black", linewidth=2)
+                        ax_res.set_ylabel("Residuals")
+                        ax_res.set_xlim(2009.5, x[-1] + 0.5)
+
                         ax.legend(loc="best")
-                        
-                        ax.set_title("{0}/{1} {2}, {3}-{4}$\AA$".format(grating, cenwave, seg, wlbin[0], wlbin[1]))
+                        if one_plot:
+                            ax_res.legend(loc="best")
+                            ax.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
+                            ax_res.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
+                        else:
+                            ax.set_title("{0}/{1} {2}, {3}-{4}$\AA$".format(grating, cenwave, seg, wlbin[0], wlbin[1]))
+                            ax_res.set_title("{0}/{1} {2}, {3}-{4}$\AA$".format(grating, cenwave, seg, wlbin[0], wlbin[1]))
                         ax.set_xlim(2009.5, x[-1] + 0.5)
                         
                         if i == (nsegs - 1):
                             ax.set_xlabel("Date")
-                
+                            ax_res.set_xlabel("Date")
+
                 figname = "{0}_{1}_trends_{2}.png".format(grating, cenwave, now_ymd)
+                figname_res = "{0}_{1}_residuals_{2}.png".format(grating, cenwave, now_ymd)
                 fig.savefig(figname)
-                fig.clear()
+                fig_res.savefig(figname_res)
+                
+                plt.close(fig)
+                plt.close(fig_res)
                 print("Saved {0}".format(figname))
+                print("Saved {0}".format(figname_res))
 
 #-----------------------------------------------------------------------------#
 
