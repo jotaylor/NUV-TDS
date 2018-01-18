@@ -427,12 +427,13 @@ class TDSTrends(object):
         
     def plot_trends(self, g285m_log=True, one_plot=False):
         """
-        Plot
+        Plot the TDS data and fits as well as residuals to the fits.
 
         Args:
             g285m_log (Bool): Switch to plot G285M trends with a log Y-axis.
             one_plot (Bool): Switch to plot all segments in one plot. 
         """
+
         import matplotlib as mpl
         import matplotlib.pyplot as plt
         plt.style.use("niceplot")
@@ -447,7 +448,7 @@ class TDSTrends(object):
         now = datetime.datetime.now()
         now_ymd = now.strftime("%Y%m%d")
 
-        # Loop over each grating
+        # Loop over each grating.
         for grating in self.trends:
             # Loop over each cenwave in the grating.
             for cenwave in self.trends[grating]:
@@ -489,10 +490,12 @@ class TDSTrends(object):
                         x = current_trends["x"]
                         y = current_trends["y"]
                         
+                        # Use the linear fit to define a continuous x-range and
+                        # corresponding y values.
                         fit_x = np.linspace(2009., x[-1]+0.5, 200)
                         fit_y = m * fit_x + b 
     
-                        # Plot linear fit and data points.
+                        # Plot TDS data points and overlay linear fit.
                         if one_plot:
                             ax.plot(fit_x, fit_y, color=colors[i], 
                                     label="{0} {1:.2f} %/yr".format(seg, m*100.))
@@ -500,8 +503,8 @@ class TDSTrends(object):
                             ax.plot(fit_x, fit_y, color=colors[i], 
                                     label="{0:.2f} %/yr".format(m*100.))
                         ax.plot(x, y, marker="*", linestyle="None", color=colors[i])
-
-                                
+    
+                        # Plot residuals to the fit.                            
                         res = y - (m*x +b) 
                         ax_res.plot(x, res, marker="*", linestyle="None", color=colors[i], label=seg)
                         ax_res.axhline(y=0, linestyle=":", color="black", linewidth=2)
@@ -510,6 +513,8 @@ class TDSTrends(object):
 
                         ax.legend(loc="best")
                         if one_plot:
+                            # No need to put cenwaves in the title for one plot
+                            # since it's in the legend.
                             ax_res.legend(loc="best")
                             ax.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
                             ax_res.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
@@ -535,6 +540,15 @@ class TDSTrends(object):
 #-----------------------------------------------------------------------------#
 
     def make_summary_plot(self, g285m_log=True):
+        """
+        Make a summary plot that used for the website:
+        http://www.stsci.edu/hst/cos/performance/sensitivity/
+        This shows all gratings in one plot. 
+
+        Args:
+            g285m_log (Bool): Switch to plot G285M trends with a log Y-axis.
+        """
+
         import matplotlib as mpl
         import matplotlib.pyplot as plt
         plt.style.use("niceplot")
@@ -544,38 +558,30 @@ class TDSTrends(object):
                   "darkmagenta", "mediumvioletred", "pink"]
                    
         fig = plt.figure(figsize=(17,12))
-        if self.detector == "NUV":
-            n_gratings = 4
-        else:
-            n_gratings = 3
-        # Gives 3 subplots for FUV, 4 for NUV.
         gs = gridspec.GridSpec(2, 2)
       
-        import pdb
-        pdb.set_trace() 
         for i,grating in enumerate(self.trends):
-            c = 0
             ax = plt.subplot(gs[i])
             ax.set_title("{0}".format(grating))
             for cenwave in self.trends[grating]:
                 for seg in self.trends[grating][cenwave]:
                     if len(self.trends[grating][cenwave][seg]) > 1:
-                        # do something
+                        # This should be investigated later.
                         # slope vs. wavelength, avg wavl. bins where overlap, smooth avg then plot that
                         this = 0.
                     else:
-                        # For loop to get the key and value, but there is only one index
+                        # For loop to get the key and value, even though there is only one index.
                         for wbin,current_trends in self.trends[grating][cenwave][seg].items():
                             x = current_trends["x"]
                             y = current_trends["y"]
                             m,b = current_trends["fit"]
                         ax.plot(x, y, marker="*", linestyle="None", color=colors[c],
                                 label="{0}/{1}".format(cenwave, seg))
-                        c += 1
             ax.legend(loc="best")
             ax.set_ylabel("Relative Net Counts")
             ax.set_xlabel("Date")
-        figname = "allnuvtds.png"
+        
+        figname = "summary_plot.png"
         fig.savefig(figname)
         print("Saved {0}".format(figname))            
 
@@ -597,11 +603,17 @@ class TDSTrends(object):
         For the NUV we only modify one time array (2nd of 3) and the fits 
         are the same for the wavelengths that correspond to the grating in
         question. 
+
+        Args:
+            outfile (str): Name of output TDSTAB.
+            current_file (str): Name of current TDSTAB that should be used
+                to copy and modify contents of.
         """
 
         import shutil
         from datetime import datetime
 
+        # This is the reftime keyword from the TDSTAB 1st header.
         reftime_dec = 2003.772602739726
 
         now = datetime.now()
@@ -610,12 +622,12 @@ class TDSTrends(object):
         current_daym = now.strftime("%d/%m/%Y")
         if not outfile:
             outfile = "{0}_tds.fits".format(current_dayb2)
-
         shutil.copy(current_file, outfile)
+        
         with pf.open(outfile, mode="update") as hdulist:
             hdr0 = hdulist[0].header
             data = hdulist[1].data
-
+            
             if self.detector == "NUV":
                 segs = ["NUVA", "NUVB", "NUVC"]
             else:
@@ -628,10 +640,10 @@ class TDSTrends(object):
                     for cenwave in self.trends[grating]:
                         for wbin, current_trends in self.trends[grating][cenwave][seg].items():
                             m,b = current_trends["fit"]
-                            # You must use the reftime from the 1st header.
                             ints.append(m * reftime_dec + b)
                             slopes.append(m)
 
+                    # Average the slopes and intercepts... :(
                     avg_m = np.average(slopes)
                     avg_b = np.average(ints)
                     indx = np.where((data["opt_elem"] == grating) 
@@ -649,9 +661,11 @@ class TDSTrends(object):
                         if data[indx]["slope"][1][i] != 0.:
                             data[indx]["slope"][1][i] = avg_m
             
+
             descrip = "Updated with TDS trends based on data as of {0}".format(current_dayb)
             descrip67 = descrip.ljust(67, "-")
             
+            # Update the necessary header keywords.
             hdr0["DESCRIP"] = descrip 
             hdr0["PEDIGREE"] = "INFLIGHT 01/09/2009 {0}".format(current_daym)
             hdr0.remove("COMMENT")
@@ -664,5 +678,5 @@ class TDSTrends(object):
             hdr0.add_history("most recent TDS analysis as of {0}.".format(current_dayb))
             hdr0.add_history("Created for the delivery of new COS NUV Synphot files.")
             hdr0.add_history("Note that only PSA entries have been updated for this purpose.")
-
+        
         print("Wrote new TDSTAB {0}".format(outfile))
