@@ -242,9 +242,9 @@ class TDSData():
         detectors = []
 
         for i in range(self.nfiles):
-            with pf.open(self.infiles[i]) as hdulist:
-                data = hdulist[1].data.copy()
-                hdr0 = hdulist[0].header.copy()
+            with pf.open(self.infiles[i], memmap=False) as hdulist:
+                data = hdulist[1].data
+                hdr0 = hdulist[0].header
                 detector = hdr0["detector"]
                 if "NUV" in detector:
                     nsegs = 3
