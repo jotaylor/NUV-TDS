@@ -278,8 +278,6 @@ class TDSData():
                 gratings.append(hdr0["opt_elem"])
                 cenwaves.append(hdr0["cenwave"]) 
 
-                print("I deleted {0}".format(self.infiles[i]))
-
         # Remove rows for all the bad files.
         remove_files(bad_inds)
 
