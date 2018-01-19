@@ -243,8 +243,8 @@ class TDSData():
 
         for i in range(self.nfiles):
             with pf.open(self.infiles[i]) as hdulist:
-                data = hdulist[1].data
-                hdr0 = hdulist[0].header
+                data = hdulist[1].data.copy()
+                hdr0 = hdulist[0].header.copy()
                 detector = hdr0["detector"]
                 if "NUV" in detector:
                     nsegs = 3
@@ -277,6 +277,8 @@ class TDSData():
                 wls.append(data["wavelength"])
                 gratings.append(hdr0["opt_elem"])
                 cenwaves.append(hdr0["cenwave"]) 
+
+                print("I deleted {0}".format(self.infiles[i]))
 
         # Remove rows for all the bad files.
         remove_files(bad_inds)
@@ -561,6 +563,7 @@ class TDSTrends(object):
         gs = gridspec.GridSpec(2, 2)
       
         for i,grating in enumerate(self.trends):
+            c = 0
             ax = plt.subplot(gs[i])
             ax.set_title("{0}".format(grating))
             for cenwave in self.trends[grating]:
@@ -577,6 +580,7 @@ class TDSTrends(object):
                             m,b = current_trends["fit"]
                         ax.plot(x, y, marker="*", linestyle="None", color=colors[c],
                                 label="{0}/{1}".format(cenwave, seg))
+                        c += 1
             ax.legend(loc="best")
             ax.set_ylabel("Relative Net Counts")
             ax.set_xlabel("Date")
