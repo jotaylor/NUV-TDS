@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import argparse
+from datetime import datetime
 
 from cos_tds import TDSData, TDSTrends
 
@@ -12,7 +13,9 @@ def run_tds(datapath, plotit, tdstab):
         tdstab (Bool): True if new TDSTAB should be created.
     """
 
-    Data = TDSData(datapath)
+    Data = TDSData(infiles=datapath, outdir=".", binsize=1000.,
+                   pickle=True, startdate=None, 
+                   stopdate=None)
     Trends = TDSTrends(Data)
     if plotit:
         Trends.plot_trends(g285m_log=True, one_plot=False)

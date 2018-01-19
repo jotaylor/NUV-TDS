@@ -55,14 +55,16 @@ class TDSData():
         nsegs (str): Number of segments, 3 for NUV or 2 for FUV.
     """
 
-    def __init__(self, infiles, outdir=".", binsize=1000., pickle=True, plot=True):
+    def __init__(self, infiles, outdir=".", binsize=1000., pickle=True, 
+                 startdate=None, stopdate=None):
         """
         Args: 
             infiles: List or wild-card or dir name of input datasets.
             outdir (str): Output directory for pickle file.
             binsize (int or float): Size of each wavelength bin.
             pickle (Bool): Switch to pickle resulting class instance. 
-            plot (Bool): Switch to make plots.
+            startdate (Datetime object): Start date of data to analyze.
+            stopdate (Datetime object): Stop date of data to analyze. 
         """
 
         infiles = self.parse_infiles(infiles)
@@ -75,7 +77,7 @@ class TDSData():
         self.outdir = outdir
         self.nfiles = len(self.infiles)
         self.rootnames = np.array([pf.getval(x, "rootname", 0) for x in self.infiles])
-        self.get_hduinfo()
+        self.get_hduinfo(startdate, stopdate)
         self.get_refdata()
         self.ratios, self.nets_intp = self.calc_ratios()
         self.bin_data(binsize)
@@ -92,7 +94,6 @@ class TDSData():
         """
 
         import pickle
-        import datetime
 
         now = datetime.datetime.now()
         pname = os.path.join(self.outdir, "costds_{0}.p".format(now.strftime("%Y%m%d_%M%S")))
@@ -219,10 +220,14 @@ class TDSData():
 #-----------------------------------------------------------------------------#
 
 # need to update for FUV.
-    def get_hduinfo(self):
+    def get_hduinfo(self, startdate, stopdate):
         """
         Get necessary information from the input files' HDU headers and 
         data extensions.
+            
+        Args:
+            startdate (Datetime object): Start date of data to analyze.
+            stopdate (Datetime object): Stop date of data to analyze. 
         """
     
         def remove_files(inds):
@@ -241,10 +246,28 @@ class TDSData():
         bad_inds = []
         detectors = []
 
+        if startdate:
+            print("! Only using data after {0} !".format(startdate))
+        if stopdate:
+            print("! Only using data before {0} !".format(stopdate))
+
         for i in range(self.nfiles):
             with pf.open(self.infiles[i], memmap=False) as hdulist:
                 data = hdulist[1].data
                 hdr0 = hdulist[0].header
+                if startdate or stopdate:
+                    hdr1 = hdulist[1].header
+                    date_obs = hdr1["date-obs"]
+                    date_obs_dt = datetime.datetime.strptime(date_obs, "%Y-%m-%d")
+                if startdate:
+                    if date_obs_dt < startdate:
+                        bad_inds.append(i)
+                        continue
+                if stopdate:
+                    if date_obs_dt > stopdate:
+                        bad_inds.append(i)
+                        continue
+
                 detector = hdr0["detector"]
                 if "NUV" in detector:
                     nsegs = 3
@@ -613,12 +636,11 @@ class TDSTrends(object):
         """
 
         import shutil
-        from datetime import datetime
 
         # This is the reftime keyword from the TDSTAB 1st header.
         reftime_dec = 2003.772602739726
 
-        now = datetime.now()
+        now = datetime.datetime.now()
         current_dayb = now.strftime("%b %d %Y")
         current_dayb2 = now.strftime("%b%d%Y")
         current_daym = now.strftime("%d/%m/%Y")
