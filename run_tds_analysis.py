@@ -14,12 +14,14 @@ def run_tds(datapath, plotit, tdstab):
     """
 
     Data = TDSData(infiles=datapath, outdir=".", binsize=1000.,
-                   pickle=True, startdate=None, 
+                   pickle=False, startdate=None, 
                    stopdate=None)
     Trends = TDSTrends(Data)
     if plotit:
-        Trends.plot_trends(g285m_log=True, one_plot=False)
-        Trends.make_summary_plot(g285m_log=True)
+        Trends.plot_trends(g285m_log=True, one_plot=True)
+        Trends.make_summary_plot(g285m_log=True, plot_fit=True,
+                                 average_stripes=True,
+                                 per_grating=False)
     if tdstab:
         Trends.create_tdstab(outfile=None,
                              current_file="/grp/hst/cdbs/lref/u7d20378l_tds.fits")
