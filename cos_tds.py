@@ -578,7 +578,7 @@ class TDSTrends(object):
 #-----------------------------------------------------------------------------#
 
     def make_summary_plot(self, g285m_log=True, plot_fit=False, 
-                          average_stripes=False, one_plot=False):
+                          average_stripes=False, per_grating=False):
         """
         Make a summary plot that used for the website:
         http://www.stsci.edu/hst/cos/performance/sensitivity/
@@ -589,7 +589,7 @@ class TDSTrends(object):
             plot_fit (Bool): True to plot fits to data along with data points.
             average_stripes (Bool): True if average data points/trends should
                 be plotted for each cenwaves.
-            one_plot (Bool): Switch to plot all segments in one plot. 
+            per_grating (Bool): Switch to plot all segments in one plot. 
         """
 
         import matplotlib as mpl
@@ -600,13 +600,13 @@ class TDSTrends(object):
                   "forestgreen", "darkturquoise", "royalblue", "mediumslateblue", 
                   "darkmagenta", "mediumvioletred", "pink", "gray"]
         
-        if not one_plot:           
+        if not per_grating:           
             fig = plt.figure(figsize=(17,12))
             gs = gridspec.GridSpec(2, 2)
       
         for i,grating in enumerate(self.trends):
             c = 0
-            if not one_plot:
+            if not per_grating:
                 ax = plt.subplot(gs[i])
             else:
                 fig = plt.figure(figsize=(11,8))
@@ -679,12 +679,12 @@ class TDSTrends(object):
             ax.legend(loc="best")
             ax.set_xlabel("Date")
            
-            if one_plot:
+            if per_grating:
                 figname = "summary_plot_{0}.png".format(grating)
                 fig.savefig(figname)
                 print("Saved {0}".format(figname))
 
-        if not one_plot:
+        if not per_grating:
             plt.suptitle("NUV TDS")
             figname = "summary_plot.png"
             fig.savefig(figname)
