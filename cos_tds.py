@@ -589,7 +589,7 @@ class TDSTrends(object):
             plot_fit (Bool): True to plot fits to data along with data points.
             average_stripes (Bool): True if average data points/trends should
                 be plotted for each cenwaves.
-            per_grating (Bool): Switch to plot all segments in one plot. 
+            per_grating (Bool): Switch to plot each grating on its own page. 
         """
 
         import matplotlib as mpl
