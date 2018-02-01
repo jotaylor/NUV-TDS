@@ -12,6 +12,7 @@ import argparse
 #-----------------------------------------------------------------------------#
 
 def measure_snr(files, windows, plot_it):
+    avg_snr = {}
     for item in files:
         hdulist = pf.open(item)
         data = hdulist[1].data
@@ -77,6 +78,14 @@ def measure_snr(files, windows, plot_it):
     
         print("SNR for {0} ({1}/{2}) using WL{{{3:4.0f}:{4:4.0f}}}= {5:4.1f}\n".format(
               rootname, opt_elem, cenwave, wl[0], wl[-1], snr))
+        
+        if cenwave not in avg_snr.keys():
+            avg_snr[cenwave] = [snr]
+        else:
+            avg_snr[cenwave].append(snr)
+    
+    for cenwave in avg_snr:
+        print("Average SNR for {0}= {1:4.1f}".format(cenwave, np.average(avg_snr[cenwave])))
 
 #-----------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------#
