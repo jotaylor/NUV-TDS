@@ -410,16 +410,21 @@ class TDSTrends(object):
             Structure is as follows: Grating -> Cenwave -> Segment ->
             Wavelength bin -> Fit (m,b), x data (dates), y data (relative net)
     """ 
-    def __init__(self, TDS):
+    def __init__(self, TDS, ignore_partial_data=True):
         """
         Args:
             TDS (TDSData class instance): Instance of TDSData.
+            ignore_partial_data (Bool): True if cenwaves that were only
+                observed for part of the TDS history should be ignored.
         """     
 
         self.detector = TDS.detector
         trends = {}
         # Create structure of the trends dictionary.
         for cenwave in set(TDS.cenwaves):
+            if ignore_partial_data:
+                if cenwave in [3360, 2739]:
+                    continue
             grating = TDS.gratings[np.where(TDS.cenwaves == cenwave)[0][0]]
             if grating not in trends.keys():
                 trends[grating] = {}
@@ -478,10 +483,8 @@ class TDSTrends(object):
                 nsegs = len(self.trends[grating][cenwave])
                 colors = ["forestgreen", "yellowgreen", "gold"]
                 if one_plot:
-                    fig = plt.figure(figsize=(8,4))
-                    fig_res = plt.figure(figsize=(8,4))
-                    gs = gridspec.GridSpec(1,1)
-                    gs_res = gridspec.GridSpec(1,1)
+                    fig = plt.figure(figsize=(11,8))
+                    gs = gridspec.GridSpec(2,1)
                 else:
                     fig = plt.figure(figsize=(8,11))
                     fig_res = plt.figure(figsize=(8,11))
@@ -494,11 +497,13 @@ class TDSTrends(object):
                         current_trends = self.trends[grating][cenwave][seg][wlbin]
                    
                         if one_plot:
-                            ax = fig.add_subplot(gs[0])     
-                            ax_res = fig_res.add_subplot(gs_res[0])
+                            ax = plt.subplot(gs[0])     
+                            ax_res = plt.subplot(gs[1], sharex=ax)
+                            plt.subplots_adjust(hspace=0)
+                            plt.setp(ax.get_xticklabels(), visible=False)
                         else:
-                            ax = fig.add_subplot(gs[i])
-                            ax_res = fig_res.add_subplot(gs_res[i])
+                            ax = pl.add_subplot(gs[i])
+                            ax_res = fig_res.add_subplot(gs_res[i], )
 
                         if g285m_log and grating == "G285M":
                             ax.set_yscale("log")
@@ -539,55 +544,88 @@ class TDSTrends(object):
                             # No need to put cenwaves in the title for one plot
                             # since it's in the legend.
                             ax_res.legend(loc="best")
-                            ax.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
-                            ax_res.set_title("{0}/{1}, {2}-{3}$\AA$".format(grating, cenwave, wlbin[0], wlbin[1]))
+                            ax.set_title("{0}/{1}".format(grating, cenwave))
                         else:
                             ax.set_title("{0}/{1} {2}, {3}-{4}$\AA$".format(grating, cenwave, seg, wlbin[0], wlbin[1]))
                             ax_res.set_title("{0}/{1} {2}, {3}-{4}$\AA$".format(grating, cenwave, seg, wlbin[0], wlbin[1]))
                         ax.set_xlim(2009.5, x[-1] + 0.5)
                         
-                        if i == (nsegs - 1):
-                            ax.set_xlabel("Date")
-                            ax_res.set_xlabel("Date")
+                       # if i == (nsegs - 1):
+                       #     ax.set_xlabel("Date")
+                       #     ax_res.set_xlabel("Date")
+                    
+                    ax.set_xlabel("Date")
+                    ax_res.set_xlabel("Date")
 
-                figname = "{0}_{1}_trends_{2}.png".format(grating, cenwave, now_ymd)
-                figname_res = "{0}_{1}_residuals_{2}.png".format(grating, cenwave, now_ymd)
-                fig.savefig(figname)
-                fig_res.savefig(figname_res)
-                
-                plt.close(fig)
-                plt.close(fig_res)
-                print("Saved {0}".format(figname))
-                print("Saved {0}".format(figname_res))
+                if one_plot:
+                    ax_res.set_yticks(ax_res.get_yticks()[1:-2])
+#                    ax.set_yticks(ax.get_yticks()[2:])
+                    figname = "{0}_{1}_trends_residuals_{2}.png".format(grating, cenwave, now_ymd)
+                    fig.savefig(figname)
+                    print("Saved {0}".format(figname))
+                    plt.close(fig)
+                else:
+                    figname = "{0}_{1}_trends_{2}.png".format(grating, cenwave, now_ymd)
+                    figname_res = "{0}_{1}_residuals_{2}.png".format(grating, cenwave, now_ymd)
+                    fig.savefig(figname)
+                    fig_res.savefig(figname_res)
+                    
+                    plt.close(fig)
+                    plt.close(fig_res)
+                    print("Saved {0}".format(figname))
+                    print("Saved {0}".format(figname_res))
 
 #-----------------------------------------------------------------------------#
 
-    def make_summary_plot(self, g285m_log=True):
+    def make_summary_plot(self, g285m_log=True, plot_fit=False, 
+                          average_stripes=False, one_plot=False):
         """
         Make a summary plot that used for the website:
         http://www.stsci.edu/hst/cos/performance/sensitivity/
         This shows all gratings in one plot. 
 
         Args:
-            g285m_log (Bool): Switch to plot G285M trends with a log Y-axis.
+            g285m_log (Bool): True to plot G285M trends with a log Y-axis.
+            plot_fit (Bool): True to plot fits to data along with data points.
+            average_stripes (Bool): True if average data points/trends should
+                be plotted for each cenwaves.
+            one_plot (Bool): Switch to plot all segments in one plot. 
         """
 
         import matplotlib as mpl
         import matplotlib.pyplot as plt
         plt.style.use("niceplot")
         from matplotlib import gridspec
-        colors = ["gray", "crimson", "darkorange", "gold", "yellowgreen", 
+        colors = ["crimson", "darkorange", "gold", "yellowgreen", 
                   "forestgreen", "darkturquoise", "royalblue", "mediumslateblue", 
-                  "darkmagenta", "mediumvioletred", "pink"]
-                   
-        fig = plt.figure(figsize=(17,12))
-        gs = gridspec.GridSpec(2, 2)
+                  "darkmagenta", "mediumvioletred", "pink", "gray"]
+        
+        if not one_plot:           
+            fig = plt.figure(figsize=(17,12))
+            gs = gridspec.GridSpec(2, 2)
       
         for i,grating in enumerate(self.trends):
             c = 0
-            ax = plt.subplot(gs[i])
-            ax.set_title("{0}".format(grating))
+            if not one_plot:
+                ax = plt.subplot(gs[i])
+            else:
+                fig = plt.figure(figsize=(11,8))
+                gs = gridspec.GridSpec(1,1)
+                ax = plt.subplot(gs[0])
+            ax.set_title("{0} Trends".format(grating))
+            if g285m_log and grating == "G285M":
+                ax.set_yscale("log")
+                ax.set_yticks([1, .8, .6, .5, .4, .3, .2, .1, .01, .001])
+                ax.set_ylabel("Log(Relative Net Counts)")
+            else:
+                ax.set_ylabel("Relative Net Counts")
+            ax.yaxis.set_major_formatter(mpl.ticker.FormatStrFormatter("%.2f"))
             for cenwave in self.trends[grating]:
+                if average_stripes:
+                    xs = []
+                    ys = []
+                    ms = []
+                    bs = []
                 for seg in self.trends[grating][cenwave]:
                     if len(self.trends[grating][cenwave][seg]) > 1:
                         # This should be investigated later.
@@ -598,17 +636,59 @@ class TDSTrends(object):
                         for wbin,current_trends in self.trends[grating][cenwave][seg].items():
                             x = current_trends["x"]
                             y = current_trends["y"]
-                            m,b = current_trends["fit"]
-                        ax.plot(x, y, marker="*", linestyle="None", color=colors[c],
-                                label="{0}/{1}".format(cenwave, seg))
-                        c += 1
+                            if plot_fit:
+                                m,b = current_trends["fit"]
+                                fit_x = np.linspace(2009., x[-1]+0.5, 200)
+                                fit_y = m * fit_x + b 
+                        if not average_stripes:
+                            if plot_fit:
+                                ax.plot(fit_x, fit_y, color=colors[c])
+                                label="{0}/{1} {2:.2f} %/yr".format(cenwave, seg, m*100)
+                            else:
+                                label="{0}/{1}".format(cenwave, seg)
+
+                            ax.plot(x, y, marker="*", linestyle="None", color=colors[c],
+#                                    markeredgecolor="black",
+                                    label=label)
+                            c += 1
+                        else:
+                            xs.append(x)
+                            ys.append(y)
+                            if plot_fit:
+                                ms.append(m)
+                                bs.append(b)
+                
+                if average_stripes:
+                    avg_x = np.average(xs, axis=0)
+                    avg_y = np.average(ys, axis=0)
+                    if plot_fit:
+                        avg_m = np.average(ms)
+                        avg_b = np.average(bs)
+                        fit_x = np.linspace(2009., avg_x[-1]+0.5, 200)
+                        fit_y = avg_m * fit_x + avg_b 
+                        ax.plot(fit_x, fit_y, color=colors[c])
+                        label="{0} Avg. {1:.2f} %/yr".format(cenwave, avg_m*100)
+                        ax.set_ylim(min(avg_y) - 0.05, max(avg_y)+ 0.05)
+                    else:
+                        label="{0} Avg".format(cenwave)
+
+                    ax.plot(avg_x, avg_y, marker="*", linestyle="None", color=colors[c],
+                            label=label)
+                    c += 1
+            
             ax.legend(loc="best")
-            ax.set_ylabel("Relative Net Counts")
             ax.set_xlabel("Date")
-        
-        figname = "summary_plot.png"
-        fig.savefig(figname)
-        print("Saved {0}".format(figname))            
+           
+            if one_plot:
+                figname = "summary_plot_{0}.png".format(grating)
+                fig.savefig(figname)
+                print("Saved {0}".format(figname))
+
+        if not one_plot:
+            plt.suptitle("NUV TDS")
+            figname = "summary_plot.png"
+            fig.savefig(figname)
+            print("Saved {0}".format(figname))            
 
 #-----------------------------------------------------------------------------#
 
