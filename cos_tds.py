@@ -472,7 +472,10 @@ class TDSTrends(object):
 
         import matplotlib as mpl
         import matplotlib.pyplot as plt
-        plt.style.use("niceplot")
+        try:
+            plt.style.use("niceplot")
+        except OSError:
+            pass
         from matplotlib import gridspec
         plt.ioff()
 
@@ -682,7 +685,10 @@ class TDSTrends(object):
 
         import matplotlib as mpl
         import matplotlib.pyplot as plt
-        plt.style.use("niceplot")
+        try:
+            plt.style.use("niceplot")
+        except OSError:
+            pass
         from matplotlib import gridspec
         colors = ["crimson", "darkorange", "gold", "yellowgreen", 
                   "forestgreen", "darkturquoise", "royalblue", "mediumslateblue", 
