@@ -18,7 +18,9 @@ def run_tds(datapath, plotit, tdstab):
                    stopdate=None)
     Trends = TDSTrends(Data)
     if plotit:
-        Trends.plot_trends(g285m_log=True, one_plot=True)
+        Trends.plot_trends(g285m_log=True, one_plot=True,
+                           plot_tdstab=None, 
+                           tdstab_residuals=False, plot_trends=True)
         Trends.make_summary_plot(g285m_log=True, plot_fit=True,
                                  average_stripes=True,
                                  per_grating=False)
