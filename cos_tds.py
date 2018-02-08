@@ -9,9 +9,13 @@ import numpy as np
 import datetime
 from scipy import stats
 import warnings
+import sys
 
 from wavelength_ranges import *
 from utils import linlsqfit
+
+REFTIME_MJD = 52922.0
+REFTIME_DEC = 2003.772602739726
 
 #-----------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------#
@@ -453,13 +457,17 @@ class TDSTrends(object):
 
 #-----------------------------------------------------------------------------#
         
-    def plot_trends(self, g285m_log=True, one_plot=False):
+    def plot_trends(self, g285m_log=True, one_plot=False, plot_tdstab=None,
+                    tdstab_residuals=False, plot_trends=True):
         """
         Plot the TDS data and fits as well as residuals to the fits.
 
         Args:
             g285m_log (Bool): Switch to plot G285M trends with a log Y-axis.
-            one_plot (Bool): Switch to plot all segments in one plot. 
+            one_plot (Bool): Switch to plot all segments in one plot.
+            plot_tdstab (str): If not None, the fit from the specified TDSTAB
+                will also be plotted.
+            plot_trends (Bool): True if emperical fit to data should be plotted. 
         """
 
         import matplotlib as mpl
@@ -475,6 +483,9 @@ class TDSTrends(object):
 
         now = datetime.datetime.now()
         now_ymd = now.strftime("%Y%m%d")
+        if plot_tdstab:
+            tdstab_file = plot_tdstab
+            tdstab = pf.getdata(tdstab_file, 1) 
 
         # Loop over each grating.
         for grating in self.trends:
@@ -513,30 +524,42 @@ class TDSTrends(object):
                         else:
                             ax.set_ylabel("Relative Net Counts")
                         ax.yaxis.set_major_formatter(mpl.ticker.FormatStrFormatter("%.2f"))
-    
+                        
+                        # Get emperical fit info.
                         m,b = current_trends["fit"]
                         x = current_trends["x"]
                         y = current_trends["y"]
-                        
                         # Use the linear fit to define a continuous x-range and
                         # corresponding y values.
                         fit_x = np.linspace(2009., x[-1]+0.5, 200)
                         fit_y = m * fit_x + b 
-    
+   
+                        # Get TDSTAB fit info if specified.
+                        if plot_tdstab:
+                            fit_tds = self.tdstab_time(tdstab, grating, seg, wlbin, fit_x)
+                            y_tds = self.tdstab_time(tdstab, grating, seg, wlbin, x)
+                            ax.plot(fit_x, fit_tds, color=colors[i], linestyle=":",
+                                    label="{0} {1} Fit".format(seg, os.path.basename(tdstab_file)))
+                     
                         # Plot TDS data points and overlay linear fit.
-                        if one_plot:
-                            ax.plot(fit_x, fit_y, color=colors[i], 
-                                    label="{0} {1:.2f} %/yr".format(seg, m*100.))
-                        else:
-                            ax.plot(fit_x, fit_y, color=colors[i], 
-                                    label="{0:.2f} %/yr".format(m*100.))
+                        if plot_trends:
+                            if one_plot:
+                                ax.plot(fit_x, fit_y, color=colors[i], 
+                                        label="{0} {1:.2f} %/yr".format(seg, m*100.))
+                            else:
+                                ax.plot(fit_x, fit_y, color=colors[i], 
+                                        label="{0:.2f} %/yr".format(m*100.))
                         ax.plot(x, y, marker="*", linestyle="None", color=colors[i])
     
                         # Plot residuals to the fit.                            
-                        res = y - (m*x +b) 
+                        if tdstab_residuals:
+                            res = y_tds - y
+                            ax_res.set_ylabel("TDSTAB Residuals")
+                        else:
+                            res = y - (m*x +b) 
+                            ax_res.set_ylabel("Empirical Fit Residuals")
                         ax_res.plot(x, res, marker="*", linestyle="None", color=colors[i], label=seg)
                         ax_res.axhline(y=0, linestyle=":", color="black", linewidth=2)
-                        ax_res.set_ylabel("Residuals")
                         ax_res.set_xlim(2009.5, x[-1] + 0.5)
 
                         ax.legend(loc="best")
@@ -575,6 +598,71 @@ class TDSTrends(object):
                     print("Saved {0}".format(figname))
                     print("Saved {0}".format(figname_res))
 
+#-----------------------------------------------------------------------------#
+
+    def tdstab_time(self, tdstab, grating, seg, wlbin, fit_x):
+        """
+        All the hacks.
+        """
+        mode_i = np.where((tdstab["aperture"] == "PSA") &
+                            (tdstab["opt_elem"] == grating) &
+                            (tdstab["segment"] == seg))[0][0]
+
+        breaks = tdstab[mode_i]["time"]
+        breaks_non0 = breaks[breaks != 0]
+        
+        fit_x_mjd = np.array([Time(x, format="decimalyear").mjd for x in fit_x])
+        which_break = np.digitize(fit_x_mjd, breaks_non0) - 1
+        wl_ind = np.where((tdstab[mode_i]["wavelength"] > wlbin[0]) &
+                          (tdstab[mode_i]["wavelength"] < wlbin[1]))[0]
+        if len(wl_ind) == 0:
+            wl_ind = np.array([(np.abs(tdstab[mode_i]["wavelength"] - wlbin[0])).argmin()])
+
+        m = np.array([tdstab[mode_i]["slope"][x][wl_ind] for x in which_break])
+        b = np.array([tdstab[mode_i]["intercept"][x][wl_ind] for x in which_break])
+
+        if len(wl_ind) > 0:
+            for i in np.arange(len(m)):
+                if len(set(m[i])) != 1:
+                    print("ERROR: The slope and intercept vary across the specified wavelength bin!!!!")
+                    sys.exit()
+                else:
+                    m[i] = m[i][0]
+                    b[i] = b[i][0]
+            m = np.array([x[0] for x in m])
+            b = np.array([x[0] for x in b])
+        m = m.flatten()
+        b = b.flatten()
+        
+        tds_y = (fit_x_mjd - REFTIME_MJD) * (m/(365.25*100.)) + b
+        
+
+#        t_mjd = [Time(breakpoints, format="mjd")]
+#        t_dec = [x.decimalyear for x in t_mjd if x.value != 0]
+        
+         
+#        m_mode = tdstab[mode_i]["slope"][0]
+#        b_mode = tdstab[mode_i]["intercept"][0]
+#        # THIS IS A HACK!!!!! This will only work for NUV since we do not
+#        # implement a wavelength-dependent TDS. If that is ever done, the 
+#        # correct index will need to be accessed for the wavelength in question.
+#        tds_fit = []
+#        for i in np.arange(len(fit_x_mjd)):
+#            m_time = m_mode[t_inds[i]]
+#            b_time = b_mode[t_inds[i]]
+#            m_inds = np.where(m_time != 0)[0]
+#            m_set = set(m_time[m_inds])
+#            if len(m_set) != 1:
+#                print("Something isn't right in tdstab_time...")
+#                sys.exit()
+#            
+#            ind = m_inds[0]
+#            tds_y = (fit_x_mjd[i] - REFTIME) * (m_time[ind]/(365.25*100)) + b_time[ind]
+#            tds_fit.append(tds_y)
+#        #tds_fit = [m[t_inds[i]] * fit_x[i] + b[t_inds[i]] for i in np.arange(len(fit_x))]
+
+        return tds_y
+    
 #-----------------------------------------------------------------------------#
 
     def make_summary_plot(self, g285m_log=True, plot_fit=False, 
@@ -784,3 +872,30 @@ class TDSTrends(object):
             hdr0.add_history("Note that only PSA entries have been updated for this purpose.")
         
         print("Wrote new TDSTAB {0}".format(outfile))
+
+#-----------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
+
+    def try_breakpoints(self):
+        """
+        """
+        
+
+            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
