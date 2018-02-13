@@ -10,14 +10,54 @@ import datetime
 from scipy import stats
 import warnings
 import sys
+import pickle
 
 from wavelength_ranges import *
 from utils import linlsqfit
 
 REFTIME_MJD = 52922.0
 REFTIME_DEC = 2003.772602739726
+RES_THRESH = 0.05
+    
+#-----------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
+
+def load_pickle(picklefile):
+    """
+    Instantiate a class from a pickle file.
+
+    Args:
+        picklefile (str): Name of input pickle file.
+    Returns:
+        isnt (instance): Instance of a class.
+    """
+    with open(picklefile, "rb") as f:
+        inst = pickle.load(f)
+    
+    return inst
 
 #-----------------------------------------------------------------------------#
+#-----------------------------------------------------------------------------#
+
+def pickle_class(inst, picklefile=None):
+    """
+    Pickle a class object.
+    
+    Args:
+        inst (instance): Instance of a class.
+        picklefile (str): Name of output pickle file.
+    """
+
+    if picklefile is None:
+        instname = type(inst).__name__
+        now = datetime.datetime.now()
+        picklefile = "{0}_{1}.p".format(instname, now.strftime("%Y%m%d_%M%S"))
+    
+    with open(picklefile, "wb") as f:
+        pickle.dump(inst, f)
+    
+    print("Wrote pickle file {0}".format(picklefile))    
+
 #-----------------------------------------------------------------------------#
 
 class TDSData():
@@ -32,7 +72,6 @@ class TDSData():
         dates (array-like): Observation date (decimal year) of each dataset.
             Astropy Time object.
         infiles (array-like): Full path and filename of all input x1d files.
-#        outdir (str): Output directory for.
         nfiles (int): Number of input x1d files.
         rootnames (array-like): Rootnames of all input x1d files.
         nets (array-like): NET array for each x1d file.
@@ -59,14 +98,12 @@ class TDSData():
         nsegs (str): Number of segments, 3 for NUV or 2 for FUV.
     """
 
-    def __init__(self, infiles, outdir=".", binsize=1000., pickle=True, 
+    def __init__(self, infiles, binsize=1000., 
                  startdate=None, stopdate=None):
         """
         Args: 
             infiles: List or wild-card or dir name of input datasets.
-            outdir (str): Output directory for pickle file.
             binsize (int or float): Size of each wavelength bin.
-            pickle (Bool): Switch to pickle resulting class instance. 
             startdate (Datetime object): Start date of data to analyze.
             stopdate (Datetime object): Stop date of data to analyze. 
         """
@@ -78,7 +115,6 @@ class TDSData():
         self.dates_mjd = np.array(mjds)[order]
         self.dates = np.array([x.datetime for x in self.dates_mjd])
         self.dates_dec = np.array([x.decimalyear for x in self.dates_mjd])
-        self.outdir = outdir
         self.nfiles = len(self.infiles)
         self.rootnames = np.array([pf.getval(x, "rootname", 0) for x in self.infiles])
         self.get_hduinfo(startdate, stopdate)
@@ -86,24 +122,6 @@ class TDSData():
         self.ratios, self.nets_intp = self.calc_ratios()
         self.bin_data(binsize)
         
-        if pickle:
-            self.pickle_tds()
-
-
-#-----------------------------------------------------------------------------#
-
-    def pickle_tds(self):
-        """
-        Pickle the TDSData class object.
-        """
-
-        import pickle
-
-        now = datetime.datetime.now()
-        pname = os.path.join(self.outdir, "costds_{0}.p".format(now.strftime("%Y%m%d_%M%S")))
-        pickle.dump(self, open(pname, "wb"))
-        print("Wrote pickle file {0}".format(pname))
-
 #-----------------------------------------------------------------------------#
 
     def apply_wl_windows(self):
@@ -391,6 +409,7 @@ class TDSData():
                     sys.exit()
             else:
                 print("ERROR Could not parse input files: {0}".format(infiles))
+                sys.exit()
         
         else:
             print("ERROR Input files were not list or str: {0}".format(infiles))
@@ -458,7 +477,8 @@ class TDSTrends(object):
 #-----------------------------------------------------------------------------#
         
     def plot_trends(self, g285m_log=True, one_plot=False, plot_tdstab=None,
-                    tdstab_residuals=False, plot_trends=True):
+                    tdstab_residuals=False, plot_trends=True, 
+                    interactive=False):
         """
         Plot the TDS data and fits as well as residuals to the fits.
 
@@ -558,6 +578,12 @@ class TDSTrends(object):
                         if tdstab_residuals:
                             res = y_tds - y
                             ax_res.set_ylabel("TDSTAB Residuals")
+                            bad_res = np.where(res >= RES_THRESH)
+                            if len(bad_res) > 0:
+                                print("WARNING: {0} points above {1} residuals " 
+                                      "compared to TDSTAB {2} for {3}/{4} {5}"
+                                      .format(len(bad_res), RES_THRESH, tdstab, 
+                                              grating, cenwave, seg))
                         else:
                             res = y - (m*x +b) 
                             ax_res.set_ylabel("Empirical Fit Residuals")
@@ -586,20 +612,33 @@ class TDSTrends(object):
                 if one_plot:
                     ax_res.set_yticks(ax_res.get_yticks()[1:-2])
 #                    ax.set_yticks(ax.get_yticks()[2:])
-                    figname = "{0}_{1}_trends_residuals_{2}.png".format(grating, cenwave, now_ymd)
-                    fig.savefig(figname)
-                    print("Saved {0}".format(figname))
-                    plt.close(fig)
+                    if interactive:
+                        plt.show()
+                        this = input("Close plot and press enter to continue")
+                        plt.clf()
+                        plt.close(fig)
+                    else:
+                        figname = "{0}_{1}_trends_residuals_{2}.png".format(grating, cenwave, now_ymd)
+                        fig.savefig(figname)
+                        print("Saved {0}".format(figname))
+                        plt.close(fig)
                 else:
-                    figname = "{0}_{1}_trends_{2}.png".format(grating, cenwave, now_ymd)
-                    figname_res = "{0}_{1}_residuals_{2}.png".format(grating, cenwave, now_ymd)
-                    fig.savefig(figname)
-                    fig_res.savefig(figname_res)
-                    
-                    plt.close(fig)
-                    plt.close(fig_res)
-                    print("Saved {0}".format(figname))
-                    print("Saved {0}".format(figname_res))
+                    if interactive:
+                        plt.show()
+                        this = input("Close plot and press enter to continue")
+                        plt.clf()
+                        plt.close(fig)
+                        plt.close(fig_res)
+                    else:
+                        figname = "{0}_{1}_trends_{2}.png".format(grating, cenwave, now_ymd)
+                        figname_res = "{0}_{1}_residuals_{2}.png".format(grating, cenwave, now_ymd)
+                        fig.savefig(figname)
+                        fig_res.savefig(figname_res)
+                        
+                        plt.close(fig)
+                        plt.close(fig_res)
+                        print("Saved {0}".format(figname))
+                        print("Saved {0}".format(figname_res))
 
 #-----------------------------------------------------------------------------#
 
@@ -639,31 +678,6 @@ class TDSTrends(object):
         
         tds_y = (fit_x_mjd - REFTIME_MJD) * (m/(365.25*100.)) + b
         
-
-#        t_mjd = [Time(breakpoints, format="mjd")]
-#        t_dec = [x.decimalyear for x in t_mjd if x.value != 0]
-        
-         
-#        m_mode = tdstab[mode_i]["slope"][0]
-#        b_mode = tdstab[mode_i]["intercept"][0]
-#        # THIS IS A HACK!!!!! This will only work for NUV since we do not
-#        # implement a wavelength-dependent TDS. If that is ever done, the 
-#        # correct index will need to be accessed for the wavelength in question.
-#        tds_fit = []
-#        for i in np.arange(len(fit_x_mjd)):
-#            m_time = m_mode[t_inds[i]]
-#            b_time = b_mode[t_inds[i]]
-#            m_inds = np.where(m_time != 0)[0]
-#            m_set = set(m_time[m_inds])
-#            if len(m_set) != 1:
-#                print("Something isn't right in tdstab_time...")
-#                sys.exit()
-#            
-#            ind = m_inds[0]
-#            tds_y = (fit_x_mjd[i] - REFTIME) * (m_time[ind]/(365.25*100)) + b_time[ind]
-#            tds_fit.append(tds_y)
-#        #tds_fit = [m[t_inds[i]] * fit_x[i] + b[t_inds[i]] for i in np.arange(len(fit_x))]
-
         return tds_y
     
 #-----------------------------------------------------------------------------#
@@ -885,8 +899,12 @@ class TDSTrends(object):
     def try_breakpoints(self):
         """
         """
-        
-
+            
+        self.plot_trends(g285m_log=True, one_plot=True,
+                         plot_tdstab=True,
+                         tdstab_residuals=True, plot_trends=True,
+                         interactive=True)
+    
             
 
 
