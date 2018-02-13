@@ -13,14 +13,15 @@ def run_tds(datapath, plotit, tdstab):
         tdstab (Bool): True if new TDSTAB should be created.
     """
 
-    Data = TDSData(infiles=datapath, outdir=".", binsize=1000.,
-                   pickle=False, startdate=None, 
+    Data = TDSData(infiles=datapath, binsize=1000.,
+                   startdate=None, 
                    stopdate=None)
     Trends = TDSTrends(Data)
     if plotit:
         Trends.plot_trends(g285m_log=True, one_plot=True,
                            plot_tdstab=None, 
-                           tdstab_residuals=False, plot_trends=True)
+                           tdstab_residuals=False, plot_trends=True,
+                           interactive=False)
         Trends.make_summary_plot(g285m_log=True, plot_fit=True,
                                  average_stripes=True,
                                  per_grating=False)
