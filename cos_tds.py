@@ -11,6 +11,13 @@ from scipy import stats
 import warnings
 import sys
 import pickle
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+try:
+    plt.style.use("niceplot")
+except OSError:
+    pass
+from matplotlib import gridspec
 
 from wavelength_ranges import *
 from utils import linlsqfit
@@ -475,7 +482,8 @@ class TDSTrends(object):
         self.trends = trends
 
 #-----------------------------------------------------------------------------#
-        
+#-----------------------------------------------------------------------------#
+
     def plot_trends(self, g285m_log=True, one_plot=False, plot_tdstab=None,
                     tdstab_residuals=False, plot_trends=True, 
                     interactive=False):
@@ -489,15 +497,6 @@ class TDSTrends(object):
                 will also be plotted.
             plot_trends (Bool): True if emperical fit to data should be plotted. 
         """
-
-        import matplotlib as mpl
-        import matplotlib.pyplot as plt
-        try:
-            plt.style.use("niceplot")
-        except OSError:
-            pass
-        from matplotlib import gridspec
-        plt.ioff()
 
         if self.detector == "FUV":
             segs = ["FUVA", "FUVB"]
@@ -536,7 +535,7 @@ class TDSTrends(object):
                             plt.subplots_adjust(hspace=0)
                             plt.setp(ax.get_xticklabels(), visible=False)
                         else:
-                            ax = pl.add_subplot(gs[i])
+                            ax = plt.add_subplot(gs[i])
                             ax_res = fig_res.add_subplot(gs_res[i], )
 
                         if g285m_log and grating == "G285M":
@@ -582,7 +581,7 @@ class TDSTrends(object):
                             if len(bad_res) > 0:
                                 print("WARNING: {0} points above {1} residuals " 
                                       "compared to TDSTAB {2} for {3}/{4} {5}"
-                                      .format(len(bad_res), RES_THRESH, tdstab, 
+                                      .format(len(bad_res), RES_THRESH, tdstab_file, 
                                               grating, cenwave, seg))
                         else:
                             res = y - (m*x +b) 
@@ -697,13 +696,6 @@ class TDSTrends(object):
             per_grating (Bool): Switch to plot each grating on its own page. 
         """
 
-        import matplotlib as mpl
-        import matplotlib.pyplot as plt
-        try:
-            plt.style.use("niceplot")
-        except OSError:
-            pass
-        from matplotlib import gridspec
         colors = ["crimson", "darkorange", "gold", "yellowgreen", 
                   "forestgreen", "darkturquoise", "royalblue", "mediumslateblue", 
                   "darkmagenta", "mediumvioletred", "pink", "gray"]
@@ -896,26 +888,18 @@ class TDSTrends(object):
 #-----------------------------------------------------------------------------#
 #-----------------------------------------------------------------------------#
 
-    def try_breakpoints(self):
+    def try_breakpoints(x, y, x_tds, y_tds, tdstab_file):
         """
         """
-            
-        self.plot_trends(g285m_log=True, one_plot=True,
-                         plot_tdstab=True,
-                         tdstab_residuals=True, plot_trends=True,
-                         interactive=True)
-    
-            
 
-
-
-
-
-
-
-
-
-
+        cont = True
+        gs = gridspec.GridSpec(2,1)
+        ax_d = plt.subplot(gs[0])
+        ax_r = plt.subplot(gs[1])  
+        while cont:
+            ax_d.plot(x, y)
+                        
+        
 
 
 
