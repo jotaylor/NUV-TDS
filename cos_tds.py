@@ -577,7 +577,7 @@ class TDSTrends(object):
                         if tdstab_residuals:
                             res = y_tds - y
                             ax_res.set_ylabel("TDSTAB Residuals")
-                            bad_res = np.where(res >= RES_THRESH)
+                            bad_res = np.where(abs(res) >= RES_THRESH)[0]
                             if len(bad_res) > 0:
                                 print("WARNING: {0} points above {1} residuals " 
                                       "compared to TDSTAB {2} for {3}/{4} {5}"
@@ -842,10 +842,12 @@ class TDSTrends(object):
                     slopes = []
                     ints = []
                     for cenwave in self.trends[grating]:
+                        if cenwave in [2850, 2010]:
+                            continue
                         for wbin, current_trends in self.trends[grating][cenwave][seg].items():
                             m,b = current_trends["fit"]
                             ints.append(m * reftime_dec + b)
-                            slopes.append(m)
+                            slopes.append(m*100.)
 
                     # Average the slopes and intercepts... :(
                     avg_m = np.average(slopes)
